@@ -15,6 +15,7 @@ let package = Package(
             name: "WLMouseMenuBar",
             linkerSettings: [
                 .linkedFramework("AppKit"),
+                .linkedFramework("CoreGraphics"),
                 .linkedFramework("IOKit")
             ]
         )

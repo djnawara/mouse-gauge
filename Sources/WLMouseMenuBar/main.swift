@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import Foundation
 import IOKit.hid
 
@@ -17,6 +18,7 @@ private struct BatteryReading: Sendable {
     enum State: Sendable {
         case active
         case sleeping
+        case noPermission
         case noDevice
         case noResponse
         case error
@@ -60,6 +62,17 @@ private final class WLMouseBatteryReader {
     ]
 
     func readBattery() -> BatteryReading {
+        guard HIDAccess.hasListenAccess else {
+            return BatteryReading(
+                state: .noPermission,
+                percent: nil,
+                charging: false,
+                deviceName: nil,
+                productID: nil,
+                detail: "Input Monitoring permission is required for HID access"
+            )
+        }
+
         let candidates = enumerateCandidates()
 
         guard !candidates.isEmpty else {
@@ -131,6 +144,10 @@ private final class WLMouseBatteryReader {
     }
 
     func describeDevices() -> [String] {
+        guard HIDAccess.hasListenAccess else {
+            return ["Input Monitoring permission is required for HID access"]
+        }
+
         let candidates = candidatesForQuery(enumerateCandidates())
         guard !candidates.isEmpty else {
             return ["No WLMouse HID collections found for VID 0x36A7"]
@@ -158,6 +175,10 @@ private final class WLMouseBatteryReader {
     }
 
     func probeDevices() -> [String] {
+        guard HIDAccess.hasListenAccess else {
+            return ["Input Monitoring permission is required for HID access"]
+        }
+
         let candidates = candidatesForQuery(enumerateCandidates())
         guard !candidates.isEmpty else {
             return ["No WLMouse HID collections found for VID 0x36A7"]
@@ -527,6 +548,144 @@ private extension ReportProtocol {
     }
 }
 
+private enum HIDAccess {
+    static var hasListenAccess: Bool {
+        if #available(macOS 10.15, *) {
+            return CGPreflightListenEventAccess()
+        }
+        return true
+    }
+
+    @discardableResult
+    static func requestListenAccess() -> Bool {
+        if #available(macOS 10.15, *) {
+            return CGRequestListenEventAccess()
+        }
+        return true
+    }
+}
+
+private enum StatusIcon {
+    static func make(percent: Int?, charging: Bool, state: BatteryReading.State) -> NSImage {
+        let size = NSSize(width: 27, height: 18)
+        let image = NSImage(size: size, flipped: false) { rect in
+            draw(in: rect, percent: percent, charging: charging, state: state)
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    private static func draw(in rect: NSRect, percent: Int?, charging: Bool, state: BatteryReading.State) {
+        let strokeColor = color(percent: percent, charging: charging, state: state)
+        let bodyPath = sideProfilePath()
+        let fillBounds = NSRect(x: 1.3, y: 3.1, width: 24.5, height: 10.2)
+
+        if let percent, state == .active {
+            let clamped = max(0, min(100, percent))
+            let fillWidth = CGFloat(clamped) / 100 * fillBounds.width
+            let fill = NSRect(
+                x: fillBounds.minX,
+                y: fillBounds.minY,
+                width: fillWidth,
+                height: fillBounds.height
+            )
+
+            NSGraphicsContext.saveGraphicsState()
+            bodyPath.addClip()
+            NSColor.white.setFill()
+            fill.fill()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
+        strokeColor.setStroke()
+        bodyPath.lineWidth = 1.3
+        bodyPath.stroke()
+
+        if charging {
+            drawPlug(color: strokeColor)
+        }
+    }
+
+    private static func sideProfilePath() -> NSBezierPath {
+        func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
+            let sourceMinX: CGFloat = 81.755
+            let sourceMaxX: CGFloat = 270
+            let sourceMaxY: CGFloat = 222.49
+            let scaleX: CGFloat = 0.13
+            let scaleY: CGFloat = 0.16
+            let mirroredX = sourceMinX + sourceMaxX - x
+            return NSPoint(
+                x: 1.3 + (mirroredX - sourceMinX) * scaleX,
+                y: 3.1 + (sourceMaxY - y) * scaleY
+            )
+        }
+
+        let path = NSBezierPath()
+        path.move(to: point(96.9115, 222.2892))
+        path.curve(
+            to: point(81.755, 200.3352),
+            controlPoint1: point(96.4495, 221.8272),
+            controlPoint2: point(81.0502, 200.8241)
+        )
+        path.curve(
+            to: point(120.2191, 179.6327),
+            controlPoint1: point(91.5, 193.2),
+            controlPoint2: point(105.5, 177.8)
+        )
+        path.curve(
+            to: point(187, 159.0362),
+            controlPoint1: point(144.0797, 168.937),
+            controlPoint2: point(145, 159.0362)
+        )
+        path.curve(
+            to: point(270, 222.2892),
+            controlPoint1: point(233.2228, 159.0362),
+            controlPoint2: point(270, 187.3555)
+        )
+        path.curve(
+            to: point(96.9115, 222.2892),
+            controlPoint1: point(270, 222.49),
+            controlPoint2: point(97.0308, 222.4084)
+        )
+        path.close()
+        return path
+    }
+
+    private static func drawPlug(color: NSColor) {
+        color.setStroke()
+        let path = NSBezierPath()
+        path.lineWidth = 1.2
+        path.lineCapStyle = .round
+        path.move(to: NSPoint(x: 11.2, y: 9.5))
+        path.line(to: NSPoint(x: 11.2, y: 7.7))
+        path.move(to: NSPoint(x: 14.8, y: 9.5))
+        path.line(to: NSPoint(x: 14.8, y: 7.7))
+        path.move(to: NSPoint(x: 10.3, y: 7.7))
+        path.line(to: NSPoint(x: 15.7, y: 7.7))
+        path.line(to: NSPoint(x: 15.7, y: 5.9))
+        path.line(to: NSPoint(x: 13, y: 5))
+        path.line(to: NSPoint(x: 13, y: 3.9))
+        path.stroke()
+    }
+
+    private static func color(percent: Int?, charging: Bool, state: BatteryReading.State) -> NSColor {
+        if charging {
+            return .systemBlue
+        }
+        guard state == .active, let percent else {
+            return .secondaryLabelColor
+        }
+        if percent <= 10 {
+            return .systemRed
+        }
+        if percent <= 20 {
+            return .systemOrange
+        }
+        return .labelColor
+    }
+}
+
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -539,7 +698,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureMenu()
-        setTitle("WL --", color: .secondaryLabelColor)
+        setStatusImage(StatusIcon.make(percent: nil, charging: false, state: .noDevice))
+
+        if !HIDAccess.hasListenAccess {
+            HIDAccess.requestListenAccess()
+        }
+
         refreshNow()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -569,6 +733,22 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
+    @objc private func openInputMonitoringSettings() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+            "x-apple.systempreferences:com.apple.preference.security"
+        ]
+
+        for value in urls {
+            guard let url = URL(string: value) else {
+                continue
+            }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+    }
+
     private func configureMenu() {
         statusMenuItem.isEnabled = false
         deviceMenuItem.isEnabled = false
@@ -584,16 +764,17 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh.target = self
         menu.addItem(refresh)
 
+        let privacy = NSMenuItem(title: "Open Input Monitoring Settings", action: #selector(openInputMonitoringSettings), keyEquivalent: "")
+        privacy.target = self
+        menu.addItem(privacy)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit WLMouse Menu Bar", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 
         statusItem.menu = menu
-        statusItem.button?.font = NSFont.monospacedDigitSystemFont(
-            ofSize: NSFont.systemFontSize,
-            weight: .medium
-        )
+        statusItem.button?.imagePosition = .imageOnly
     }
 
     private func apply(_ reading: BatteryReading) {
@@ -602,19 +783,22 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         switch reading.state {
         case .active:
             let percent = reading.percent ?? 0
-            setTitle("WL \(percent)%", color: color(for: percent, charging: reading.charging))
+            setStatusImage(StatusIcon.make(percent: percent, charging: reading.charging, state: reading.state))
             statusMenuItem.title = reading.charging ? "Status: Charging, \(percent)%" : "Status: \(percent)%"
         case .sleeping:
-            setTitle("WL sleep", color: .secondaryLabelColor)
+            setStatusImage(StatusIcon.make(percent: nil, charging: false, state: reading.state))
             statusMenuItem.title = "Status: Sleeping"
+        case .noPermission:
+            setStatusImage(StatusIcon.make(percent: nil, charging: false, state: reading.state))
+            statusMenuItem.title = "Status: Input Monitoring required"
         case .noDevice:
-            setTitle("WL --", color: .secondaryLabelColor)
+            setStatusImage(StatusIcon.make(percent: nil, charging: false, state: reading.state))
             statusMenuItem.title = "Status: No device"
         case .noResponse:
-            setTitle("WL ?", color: .systemOrange)
+            setStatusImage(StatusIcon.make(percent: nil, charging: false, state: reading.state))
             statusMenuItem.title = "Status: No battery response"
         case .error:
-            setTitle("WL !", color: .systemRed)
+            setStatusImage(StatusIcon.make(percent: nil, charging: false, state: reading.state))
             statusMenuItem.title = "Status: Error"
         }
 
@@ -629,24 +813,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.toolTip = tooltip(for: reading)
     }
 
-    private func setTitle(_ title: String, color: NSColor) {
-        statusItem.button?.attributedTitle = NSAttributedString(
-            string: title,
-            attributes: [.foregroundColor: color]
-        )
-    }
-
-    private func color(for percent: Int, charging: Bool) -> NSColor {
-        if charging {
-            return .systemBlue
-        }
-        if percent <= 10 {
-            return .systemRed
-        }
-        if percent <= 20 {
-            return .systemOrange
-        }
-        return .labelColor
+    private func setStatusImage(_ image: NSImage) {
+        statusItem.button?.image = image
+        statusItem.button?.title = ""
     }
 
     private func tooltip(for reading: BatteryReading) -> String {
@@ -658,6 +827,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             return "\(device): \(percent) \(mode)"
         case .sleeping:
             return "\(device): sleeping"
+        case .noPermission:
+            return "Input Monitoring permission is required"
         case .noDevice:
             return "No WLMouse device found"
         case .noResponse:
@@ -677,6 +848,8 @@ private func runOnce() {
         print("Battery: \(percent)% (\(charging))")
     case .sleeping:
         print("Sleeping: receiver replied, but no live battery value")
+    case .noPermission:
+        print("Input Monitoring permission is required for HID access")
     case .noDevice:
         print("No WLMouse HID devices found")
     case .noResponse:
