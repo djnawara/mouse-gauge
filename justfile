@@ -18,11 +18,13 @@ app: build
     install -d {{build-dir}}/WLMouseMenuBar.app/Contents/Resources
     cp -f {{build-dir}}/debug/WLMouseMenuBar {{build-dir}}/WLMouseMenuBar.app/Contents/MacOS/WLMouseMenuBar
     cp -f Packaging/Info.plist {{build-dir}}/WLMouseMenuBar.app/Contents/Info.plist
-    codesign --force --deep --sign - {{build-dir}}/WLMouseMenuBar.app
+    codesign --force --deep --sign "${WLMOUSE_SIGN_IDENTITY:--}" {{build-dir}}/WLMouseMenuBar.app
 
 install: app
-    install -d "$HOME/Applications"
-    ditto {{build-dir}}/WLMouseMenuBar.app "$HOME/Applications/WLMouseMenuBar.app"
+    bash scripts/install.sh "{{build-dir}}/WLMouseMenuBar.app"
+
+repair-permissions:
+    bash scripts/install.sh --repair-permissions
 
 launch: app
     open {{build-dir}}/WLMouseMenuBar.app

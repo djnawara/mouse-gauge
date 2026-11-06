@@ -75,6 +75,8 @@ Install it into your user Applications folder:
 just install
 ```
 
+Installation quits any running copy before replacing it and relaunches it afterward. When an updated ad hoc build changes the app's signing requirement, installation also resets only this app's Input Monitoring decision and launches the new build to request access. Reinstalling the same build preserves its existing permission. You still approve access in macOS; installation cannot grant it for you.
+
 Then launch:
 
 ```sh
@@ -124,18 +126,21 @@ just install
 open ~/Applications/WLMouseMenuBar.app
 ```
 
-If the menu bar app shows `auth` or `--` while `just once` works:
+If the app shows `Status: Input Monitoring required`, or its enabled permission entry has stopped working after an update, run:
 
-1. Quit WLMouse Menu Bar.
-2. Open System Settings > Privacy & Security > Input Monitoring.
-3. Remove old `WLMouse Menu Bar` entries, especially entries pointing at `.build` or previous install locations.
-4. Add or enable `~/Applications/WLMouseMenuBar.app`.
-5. Restart macOS with the wireless dongle connected.
-6. Launch only `~/Applications/WLMouseMenuBar.app`.
+```sh
+just repair-permissions
+```
 
-The clean restart matters when macOS keeps stale TCC state for a previous development build. After the installed app is authorized from the stable location, it should enumerate the same receiver that `just once` sees from Terminal.
+This quits the app, clears its Input Monitoring decision with `tccutil reset ListenEvent local.wlmouse-menu-bar`, and relaunches the installed copy so macOS can request access again. Enable it in System Settings > Privacy & Security > Input Monitoring, then quit and reopen the app if macOS asks. Other apps' permissions are unaffected. If a stale entry persists, remove it manually and relaunch the installed app.
 
-When the launched app lacks Input Monitoring permission it displays `auth` in the menu bar and requests access on startup. After granting access, quit and reopen the app.
+The default build uses ad hoc signing, whose signing requirement changes with the executable. To use a stable signing certificate from your Keychain instead:
+
+```sh
+WLMOUSE_SIGN_IDENTITY='Your code signing identity' just install
+```
+
+Use `security find-identity -v -p codesigning` to list available identities. Signing subsequent versions with the same certificate and bundle identifier can preserve permissions across updates. The installer does not automatically reset permissions for certificate-signed builds; `just repair-permissions` remains available if needed.
 
 ## Recipes
 
@@ -143,6 +148,7 @@ When the launched app lacks Input Monitoring permission it displays `auth` in th
 just build
 just app
 just install
+just repair-permissions
 just launch
 just open
 just run
