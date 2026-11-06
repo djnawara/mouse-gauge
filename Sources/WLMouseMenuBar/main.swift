@@ -606,16 +606,16 @@ private enum StatusIcon {
         NSGraphicsContext.current?.cgContext.setBlendMode(.destinationOut)
         NSColor.black.setFill()
         NSBezierPath(
-            roundedRect: NSRect(x: rect.midX - 0.55, y: rect.midY + 3.7, width: 1.1, height: 6),
-            xRadius: 0.55,
-            yRadius: 0.55
+            roundedRect: NSRect(x: rect.midX - 0.9, y: rect.midY + 3.1, width: 1.8, height: 6.6),
+            xRadius: 0.9,
+            yRadius: 0.9
         ).fill()
         NSGraphicsContext.restoreGraphicsState()
     }
 
     private static func silhouette(in rect: NSRect) -> NSBezierPath {
         func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
-            NSPoint(x: rect.midX + x, y: rect.midY + y)
+            NSPoint(x: rect.midX + x * 1.15, y: rect.midY + y)
         }
 
         // Beast X-inspired contour: a peaked front, shallow waist, flared rear,
