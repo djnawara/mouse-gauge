@@ -570,7 +570,7 @@ private enum HIDAccess {
 
 private enum StatusIcon {
     static func make(percent: Int?, charging: Bool, state: BatteryReading.State) -> NSImage {
-        let image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { rect in
+        let image = NSImage(size: NSSize(width: 20, height: 18), flipped: false) { rect in
             draw(in: rect, percent: percent, charging: charging, state: state)
             return true
         }
@@ -581,62 +581,46 @@ private enum StatusIcon {
 
     private static func draw(in rect: NSRect, percent: Int?, charging: Bool, state: BatteryReading.State) {
         let ink = color(percent: percent, charging: charging, state: state)
-        // Original top-down mouse silhouette, with a battery gauge below the buttons.
-        let body = NSBezierPath(
-            roundedRect: NSRect(x: rect.minX + 3, y: rect.minY + 1.5, width: 12, height: 15),
-            xRadius: 5.5,
-            yRadius: 5.5
-        )
-        ink.setStroke()
-        body.lineWidth = 1.25
-        body.stroke()
+        let body = silhouette(in: rect)
 
-        ink.setFill()
-        NSBezierPath(roundedRect: NSRect(x: rect.minX + 8.3, y: rect.minY + 12.2, width: 1.4, height: 2.6), xRadius: 0.7, yRadius: 0.7).fill()
-
-        let buttons = NSBezierPath()
-        buttons.move(to: NSPoint(x: rect.minX + 3.5, y: rect.minY + 10.8))
-        buttons.line(to: NSPoint(x: rect.minX + 14.5, y: rect.minY + 10.8))
-        buttons.lineWidth = 1
-        buttons.stroke()
-
-        let gauge = NSRect(x: rect.minX + 5.5, y: rect.minY + 3.5, width: 7, height: 5.5)
-        let gaugePath = NSBezierPath(roundedRect: gauge, xRadius: 1.5, yRadius: 1.5)
-        ink.withAlphaComponent(0.2).setFill()
-        gaugePath.fill()
         if state == .active, let percent {
-            let fillWidth = gauge.width * CGFloat(max(0, min(100, percent))) / 100
+            // The whole mouse is the gauge: a faint empty portion and a solid
+            // charge level rising from the heel toward the front of the mouse.
+            ink.withAlphaComponent(0.22).setFill()
+            body.fill()
+            let bounds = body.bounds
+            let fillHeight = bounds.height * CGFloat(max(0, min(100, percent))) / 100
             NSGraphicsContext.saveGraphicsState()
-            gaugePath.addClip()
+            NSRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: fillHeight).clip()
             ink.setFill()
-            NSRect(x: gauge.minX, y: gauge.minY, width: fillWidth, height: gauge.height).fill()
+            body.fill()
             NSGraphicsContext.restoreGraphicsState()
         } else {
-            // An unavailable reading is distinct from a full or empty battery.
-            ink.setStroke()
-            let dash = NSBezierPath()
-            dash.move(to: NSPoint(x: gauge.minX + 1.5, y: gauge.midY))
-            dash.line(to: NSPoint(x: gauge.maxX - 1.5, y: gauge.midY))
-            dash.lineWidth = 1
-            dash.stroke()
+            ink.setFill()
+            body.fill()
+        }
+    }
+
+    private static func silhouette(in rect: NSRect) -> NSBezierPath {
+        func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
+            NSPoint(x: rect.midX + x, y: rect.midY + y)
         }
 
-        if charging {
-            let bolt = NSBezierPath()
-            bolt.move(to: NSPoint(x: rect.minX + 19.5, y: rect.minY + 12))
-            bolt.line(to: NSPoint(x: rect.minX + 16.5, y: rect.minY + 7.5))
-            bolt.line(to: NSPoint(x: rect.minX + 18.5, y: rect.minY + 7.5))
-            bolt.line(to: NSPoint(x: rect.minX + 17.5, y: rect.minY + 4))
-            bolt.line(to: NSPoint(x: rect.minX + 21, y: rect.minY + 9))
-            bolt.line(to: NSPoint(x: rect.minX + 19, y: rect.minY + 9))
-            bolt.close()
-            ink.setFill()
-            bolt.fill()
-        } else if state == .noPermission || state == .error {
-            ink.setFill()
-            NSBezierPath(roundedRect: NSRect(x: rect.minX + 18, y: rect.minY + 7, width: 1.5, height: 5), xRadius: 0.75, yRadius: 0.75).fill()
-            NSBezierPath(ovalIn: NSRect(x: rect.minX + 18, y: rect.minY + 4.5, width: 1.5, height: 1.5)).fill()
-        }
+        // Beast X-inspired outer contour: a gently peaked front, shallow waist,
+        // flared rear, and rounded heel. No branding, buttons, or shell cutouts.
+        let body = NSBezierPath()
+        body.move(to: point(-0.7, 8.3))
+        body.line(to: point(0.7, 8.3))
+        body.curve(to: point(4.9, 5.9), controlPoint1: point(2.3, 7.8), controlPoint2: point(5.1, 6.9))
+        body.curve(to: point(4.5, 0), controlPoint1: point(4.9, 3.9), controlPoint2: point(4.3, 1.7))
+        body.curve(to: point(5.2, -4.1), controlPoint1: point(4.6, -1.4), controlPoint2: point(5.2, -2.7))
+        body.curve(to: point(0, -8.3), controlPoint1: point(5.2, -6.7), controlPoint2: point(2.9, -8.3))
+        body.curve(to: point(-5.2, -4.1), controlPoint1: point(-2.9, -8.3), controlPoint2: point(-5.2, -6.7))
+        body.curve(to: point(-4.5, 0), controlPoint1: point(-5.2, -2.7), controlPoint2: point(-4.6, -1.4))
+        body.curve(to: point(-4.9, 5.9), controlPoint1: point(-4.3, 1.7), controlPoint2: point(-4.9, 3.9))
+        body.curve(to: point(-0.7, 8.3), controlPoint1: point(-5.1, 6.9), controlPoint2: point(-2.3, 7.8))
+        body.close()
+        return body
     }
 
     private static func color(percent: Int?, charging: Bool, state: BatteryReading.State) -> NSColor {
