@@ -5,16 +5,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "WLMouseMenuBar",
+    name: "MouseGauge",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "WLMouseMenuBar", targets: ["WLMouseMenuBar"])
+        .executable(name: "MouseGauge", targets: ["MouseGauge"])
     ],
     targets: [
         .executableTarget(
-            name: "WLMouseMenuBar",
+            name: "MouseGauge",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("CoreGraphics"),

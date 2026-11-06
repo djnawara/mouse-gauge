@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleExecutable</key>
-	<string>WLMouseMenuBar</string>
+	<string>MouseGauge</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.wlmouse-menu-bar</string>
+	<string>io.github.djnawara.mousegauge</string>
 	<key>CFBundleName</key>
-	<string>WLMouse Menu Bar</string>
+	<string>MouseGauge</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

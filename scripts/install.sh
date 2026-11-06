@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 
-target="${WLMOUSE_INSTALL_DIR:-$HOME/Applications}/WLMouseMenuBar.app"
+install_dir="${MOUSEGAUGE_INSTALL_DIR:-${WLMOUSE_INSTALL_DIR:-$HOME/Applications}}"
+target="$install_dir/MouseGauge.app"
+legacy_target="$install_dir/WLMouseMenuBar.app"
 repair=false
 if [[ "${1:-}" == "--repair-permissions" ]]; then
     repair=true
@@ -21,16 +23,24 @@ if [[ "$repair" == false && -d "$target" ]]; then
     fi
 fi
 
+is_running() {
+    pgrep -x MouseGauge >/dev/null || pgrep -x WLMouseMenuBar >/dev/null
+}
+
 was_running=false
-if pgrep -x WLMouseMenuBar >/dev/null; then
+if is_running; then
     was_running=true
-    pkill -TERM -x WLMouseMenuBar
+    for process_name in MouseGauge WLMouseMenuBar; do
+        if pgrep -x "$process_name" >/dev/null; then
+            pkill -TERM -x "$process_name"
+        fi
+    done
     for ((attempt = 0; attempt < 50; attempt++)); do
-        if ! pgrep -x WLMouseMenuBar >/dev/null; then break; fi
+        if ! is_running; then break; fi
         sleep 0.1
     done
-    if pgrep -x WLMouseMenuBar >/dev/null; then
-        echo 'WLMouse Menu Bar is still running; quit it before installing.' >&2
+    if is_running; then
+        echo 'MouseGauge or WLMouse Menu Bar is still running; quit it before installing.' >&2
         exit 1
     fi
 fi
@@ -38,12 +48,27 @@ fi
 if [[ "${1:-}" != "--repair-permissions" ]]; then
     mkdir -p "$(dirname "$target")"
     ditto "$source_app" "$target"
+    codesign --verify --deep --strict "$target"
+
+    if [[ -d "$legacy_target" ]]; then
+        legacy_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$legacy_target/Contents/Info.plist")
+        if [[ "$legacy_id" == local.wlmouse-menu-bar ]]; then
+            # Retire the old app without deleting it or leaving a second launchable copy.
+            backup_dir=$(mktemp -d "$install_dir/.MouseGauge-previous-install.XXXXXX")
+            mv "$legacy_target" "$backup_dir/WLMouseMenuBar.app.previous"
+            echo "Previous app saved at: $backup_dir/WLMouseMenuBar.app.previous"
+            if ! tccutil reset ListenEvent "$legacy_id"; then
+                echo 'Could not clear the old WLMouse permission entry; remove it in Settings if it remains.' >&2
+            fi
+            was_running=true # Open the renamed app to request its own permission.
+        fi
+    fi
 fi
 
 if [[ "$repair" == true ]]; then
-    echo 'Clearing the old WLMouse Input Monitoring decision.'
+    echo 'Clearing the old MouseGauge Input Monitoring decision.'
     tccutil reset ListenEvent "$bundle_id"
-    echo 'Approve WLMouse Menu Bar when macOS requests Input Monitoring access.'
+    echo 'Approve MouseGauge when macOS requests Input Monitoring access.'
 fi
 
 if [[ "$was_running" == true || "$repair" == true ]]; then

@@ -791,7 +791,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         menu.addItem(privacy)
 
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit WLMouse Menu Bar", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit MouseGauge", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 

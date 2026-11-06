@@ -1,8 +1,8 @@
-# WLMouse Menu Bar
+# MouseGauge
 
-See your WLMouse battery and charging status at a glance in the macOS menu bar.
+Battery insights and controls for your mouse.
 
-A small native Swift app for checking your mouse without opening a configuration tool. A solid mouse silhouette with a simple wheel gap fills from bottom to top with the battery level and turns blue while charging. Built and maintained by [David Nawara](https://github.com/djnawara).
+A small native Swift app that currently shows WLMouse battery and charging status in the macOS menu bar. Mouse controls and battery history are on the roadmap. A solid mouse silhouette with a simple wheel gap fills from bottom to top with the battery level and turns blue while charging. Built and maintained by [David Nawara](https://github.com/djnawara).
 
 ![Solid mouse silhouette showing a full battery](docs/images/full-battery.png)
 
@@ -32,20 +32,22 @@ You need:
 Nix and direnv are optional. If you use them, the included flake supplies `just`; run `direnv allow` in the checkout. Alternatively, enter the development shell with `nix develop`.
 
 ```sh
-git clone https://github.com/djnawara/wlmouse-menu-bar.git
-cd wlmouse-menu-bar
+git clone https://github.com/djnawara/mouse-gauge.git
+cd mouse-gauge
 ```
 
 For now, the project uses local builds and local signing. We recommend creating your own free signing certificate using the next section before installing. No paid Apple Developer membership is required for that setup.
 
-With a certificate named `WLMouse Local Signing` in your Keychain:
+With a certificate named `MouseGauge Local Signing` in your Keychain:
 
 ```sh
-WLMOUSE_SIGN_IDENTITY='WLMouse Local Signing' just install
+MOUSEGAUGE_SIGN_IDENTITY='MouseGauge Local Signing' just install
 just open
 ```
 
-The app installs at `~/Applications/WLMouseMenuBar.app`. Approve **WLMouse Menu Bar** in **System Settings → Privacy & Security → Input Monitoring** when requested. Quit and reopen the app if macOS asks you to do so.
+The app installs at `~/Applications/MouseGauge.app`. Approve **MouseGauge** in **System Settings → Privacy & Security → Input Monitoring** when requested. Quit and reopen the app if macOS asks you to do so.
+
+Upgrading from **WLMouse Menu Bar**? The installer stops the old app, installs MouseGauge, and moves the previous app into a hidden `.MouseGauge-previous-install.*` backup folder inside your Applications folder. Its backup no longer has an `.app` extension. The old permission entry is reset, and MouseGauge requests its own Input Monitoring approval under its new bundle identifier.
 
 For a quick build without creating a certificate, use `just install` followed by `just open`. This defaults to ad hoc signing, which can require approving Input Monitoring again after the executable changes.
 
@@ -59,7 +61,7 @@ For now, our signing approach is a certificate you create and keep on your own M
 
 1. Open **Keychain Access** (the certificate utility, rather than the Passwords app).
 2. Choose **Keychain Access → Certificate Assistant → Create a Certificate**.
-3. Name it **WLMouse Local Signing**.
+3. Name it **MouseGauge Local Signing**.
 4. Set **Identity Type** to **Self Signed Root** and **Certificate Type** to **Code Signing**.
 5. Select **Let me override defaults** to choose a validity period, then complete the remaining certificate details and create it in your login keychain.
 
@@ -76,18 +78,20 @@ If your certificate is not listed as valid, open it in Keychain Access, expand *
 Run every install with the same identity:
 
 ```sh
-WLMOUSE_SIGN_IDENTITY='WLMouse Local Signing' just install
+MOUSEGAUGE_SIGN_IDENTITY='MouseGauge Local Signing' just install
 ```
 
 Or set it for your terminal session, then use the usual commands:
 
 ```sh
-export WLMOUSE_SIGN_IDENTITY='WLMouse Local Signing'
+export MOUSEGAUGE_SIGN_IDENTITY='MouseGauge Local Signing'
 just install
 just open
 ```
 
 Reuse the existing certificate rather than creating a new one for each build. Signing with the same certificate, bundle identifier, and install location is intended to keep the identity consistent across updates; macOS may still require reapproval. Switching from ad hoc signing can require one final `just repair-permissions` and approval of the newly signed app.
+
+If you already created a certificate named `WLMouse Local Signing`, keep using it: set `MOUSEGAUGE_SIGN_IDENTITY` to that existing name. The previous `WLMOUSE_SIGN_IDENTITY` environment variable is also accepted for compatibility. The app rename changes its bundle identifier, so expect a fresh approval once during migration even when reusing your certificate.
 
 Create your own certificate for your own builds; keep its private key out of this repository. The installer does not automatically reset permissions for certificate-signed builds. The recovery command below remains available if an approval becomes stale.
 
@@ -101,9 +105,9 @@ If the dropdown says **Status: Input Monitoring required**, or the app stops upd
 just repair-permissions
 ```
 
-This quits WLMouse Menu Bar, resets only its Input Monitoring decision using `tccutil reset ListenEvent local.wlmouse-menu-bar`, and relaunches the installed app to request access again. Approve it in Settings, then quit and reopen if requested. See Apple's [permission reset documentation](https://developer.apple.com/documentation/xcode/resetting-access-to-protected-resources-in-macos).
+This quits MouseGauge, resets only its Input Monitoring decision using `tccutil reset ListenEvent io.github.djnawara.mousegauge`, and relaunches the installed app to request access again. Approve it in Settings, then quit and reopen if requested. See Apple's [permission reset documentation](https://developer.apple.com/documentation/xcode/resetting-access-to-protected-resources-in-macos).
 
-If the stale entry persists, remove **WLMouse Menu Bar** from Input Monitoring, then relaunch `~/Applications/WLMouseMenuBar.app` to create a fresh entry. Keep using this installed location during testing; copies launched from `.build` can have a different permission state.
+If the stale entry persists, remove **MouseGauge** from Input Monitoring, then relaunch `~/Applications/MouseGauge.app` to create a fresh entry. Keep using this installed location during testing; copies launched from `.build` can have a different permission state.
 
 For a receiver that remains undetected, reconnect it and check the diagnostics below. A command run from your terminal may have different permission from the installed app, so a successful terminal read does not prove the app is authorized. If devices remain missing after correcting permissions and reconnecting, restart macOS with the receiver connected and try again.
 
@@ -142,7 +146,7 @@ These are planned directions, not features available in the current app. Hardwar
 | Command | Purpose |
 | --- | --- |
 | `just build` | Build the Swift executable. |
-| `just app` | Build and sign `.build/WLMouseMenuBar.app`. |
+| `just app` | Build and sign `.build/MouseGauge.app`. |
 | `just install` | Install the app, handling running copies and stale ad hoc permissions. |
 | `just open` | Open the installed app. |
 | `just repair-permissions` | Reset this app's Input Monitoring decision and relaunch it. |
@@ -152,9 +156,9 @@ These are planned directions, not features available in the current app. Hardwar
 | `just probe` | Print raw feature-report probe results. |
 | `just clean` | Clean SwiftPM build outputs. |
 
-`just launch` opens the build-folder app for development. Prefer `just install` and `just open` when testing Input Monitoring permissions. `WLMOUSE_SIGN_IDENTITY` applies to `just app`, `just install`, and `just launch`; SwiftPM diagnostic commands run the executable directly.
+`just launch` opens the build-folder app for development. Prefer `just install` and `just open` when testing Input Monitoring permissions. `MOUSEGAUGE_SIGN_IDENTITY` applies to `just app`, `just install`, and `just launch`; SwiftPM diagnostic commands run the executable directly.
 
-For compatibility issues, [open an issue](https://github.com/djnawara/wlmouse-menu-bar/issues) with your macOS version, mouse model, wired/wireless connection, and output from `just devices` and `just once`. Note any permission errors. Review diagnostic output before posting it.
+For compatibility issues, [open an issue](https://github.com/djnawara/mouse-gauge/issues) with your macOS version, mouse model, wired/wireless connection, and output from `just devices` and `just once`. Note any permission errors. Review diagnostic output before posting it.
 
 ## Protocol notes and credits
 
@@ -170,6 +174,6 @@ Known feature-report devices use VID `0x36A7`, a 65-byte feature report, command
 
 Copyright (C) 2026 David Nawara.
 
-WLMouse Menu Bar is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (`GPL-3.0-or-later`).
+MouseGauge is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (`GPL-3.0-or-later`).
 
 This program is distributed without any warranty, including the implied warranties of merchantability or fitness for a particular purpose. See [LICENSE](LICENSE) for the full terms.

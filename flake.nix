@@ -1,5 +1,5 @@
 {
-  description = "macOS menu bar item for WLMouse battery status";
+  description = "MouseGauge: battery insights and controls for your mouse";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
