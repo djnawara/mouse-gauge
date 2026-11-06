@@ -1,3 +1,5 @@
 /tmp/
 /.build/
 /.direnv/
+/.idea/
+.DS_Store
