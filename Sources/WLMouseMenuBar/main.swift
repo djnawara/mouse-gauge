@@ -606,9 +606,9 @@ private enum StatusIcon {
         NSGraphicsContext.current?.cgContext.setBlendMode(.destinationOut)
         NSColor.black.setFill()
         NSBezierPath(
-            roundedRect: NSRect(x: rect.midX - 0.9, y: rect.midY + 3.1, width: 1.8, height: 6.6),
-            xRadius: 0.9,
-            yRadius: 0.9
+            roundedRect: NSRect(x: rect.midX - 1.35, y: rect.midY + 2.29, width: 2.7, height: 7.41),
+            xRadius: 1.35,
+            yRadius: 1.35
         ).fill()
         NSGraphicsContext.restoreGraphicsState()
     }
