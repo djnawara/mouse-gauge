@@ -10,6 +10,10 @@ WLMouse Menu Bar reads battery status from WLMouse wireless mice and displays it
 
 The app talks directly to WLMouse HID devices through IOKit. It supports the wireless dongle path and the direct USB mouse path when macOS exposes both. For the Beast X 8K setup tested here, unplugged wireless mode reads battery through the `0xA883` receiver.
 
+Battery status refreshes automatically every five seconds, including while the dropdown is open. Opening the menu also requests an immediate refresh. Queries run in the background without overlapping, and the last status stays visible until the next reading arrives.
+
+WLMouse USB device connections and disconnections also request an immediate refresh. If a connection changes during a query, another read runs as soon as it finishes. Charging changes that do not add or remove a USB device (such as charging from a wall charger while the receiver stays connected) are picked up by polling.
+
 The menu bar dropdown shows:
 
 - Current status

@@ -44,7 +44,7 @@ private struct HIDCandidate {
 }
 
 private final class WLMouseBatteryReader {
-    private static let vendorID = 0x36A7
+    static let vendorID = 0x36A7
 
     private static let knownProducts: [Int: ProductInfo] = [
         0xA860: ProductInfo(name: "WLMouse Receiver", reportProtocol: .feature),
@@ -687,13 +687,16 @@ private enum StatusIcon {
 }
 
 @MainActor
-private final class AppDelegate: NSObject, NSApplicationDelegate {
+private final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private static let refreshInterval: TimeInterval = 5
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let statusMenuItem = NSMenuItem(title: "Status: Starting", action: nil, keyEquivalent: "")
     private let deviceMenuItem = NSMenuItem(title: "Device: Unknown", action: nil, keyEquivalent: "")
     private let detailMenuItem = NSMenuItem(title: "Detail: Waiting for first refresh", action: nil, keyEquivalent: "")
     private var refreshTimer: Timer?
+    private var connectionMonitor: IOHIDManager?
     private var isRefreshing = false
+    private var connectionRefreshPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -704,11 +707,64 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             HIDAccess.requestListenAccess()
         }
 
+        startConnectionMonitor()
         refreshNow()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshNow()
             }
+        }
+        // Keep battery updates running while the dropdown is being tracked.
+        RunLoop.main.add(timer, forMode: .common)
+        refreshTimer = timer
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        refreshNow()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        refreshTimer?.invalidate()
+        guard let manager = connectionMonitor else { return }
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, nil, nil)
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, nil, nil)
+        IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        connectionMonitor = nil
+    }
+
+    private func startConnectionMonitor() {
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        IOHIDManagerSetDeviceMatching(manager, [kIOHIDVendorIDKey: WLMouseBatteryReader.vendorID] as CFDictionary)
+
+        let callback: IOHIDDeviceCallback = { context, _, _, _ in
+            guard let context else { return }
+            let delegate = Unmanaged<AppDelegate>.fromOpaque(context).takeUnretainedValue()
+            Task { @MainActor in
+                delegate.deviceConnectionChanged()
+            }
+        }
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, callback, context)
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, callback, context)
+        IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+
+        let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard result == kIOReturnSuccess else {
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+            return // Periodic refresh remains available if monitoring cannot start.
+        }
+        connectionMonitor = manager
+    }
+
+    private func deviceConnectionChanged() {
+        // A single USB device can expose several collections. Coalesce events
+        // during a query into one fresh read after that query finishes.
+        if isRefreshing {
+            connectionRefreshPending = true
+        } else {
+            refreshNow()
         }
     }
 
@@ -718,7 +774,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         isRefreshing = true
-        statusMenuItem.title = "Status: Refreshing"
         detailMenuItem.title = "Detail: Querying WLMouse HID reports"
 
         DispatchQueue.global(qos: .utility).async {
@@ -755,6 +810,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         detailMenuItem.isEnabled = false
 
         let menu = NSMenu()
+        menu.delegate = self
         menu.addItem(statusMenuItem)
         menu.addItem(deviceMenuItem)
         menu.addItem(detailMenuItem)
@@ -811,6 +867,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
         detailMenuItem.title = "Detail: \(reading.detail)"
         statusItem.button?.toolTip = tooltip(for: reading)
+
+        if connectionRefreshPending {
+            connectionRefreshPending = false
+            refreshNow()
+        }
     }
 
     private func setStatusImage(_ image: NSImage) {
