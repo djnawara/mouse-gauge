@@ -570,176 +570,74 @@ private enum HIDAccess {
 
 private enum StatusIcon {
     static func make(percent: Int?, charging: Bool, state: BatteryReading.State) -> NSImage {
-        let size = NSSize(width: 20, height: 18)
-        let image = NSImage(size: size, flipped: false) { rect in
+        let image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { rect in
             draw(in: rect, percent: percent, charging: charging, state: state)
             return true
         }
         image.isTemplate = false
+        image.accessibilityDescription = "Mouse battery status"
         return image
     }
 
     private static func draw(in rect: NSRect, percent: Int?, charging: Bool, state: BatteryReading.State) {
-        let strokeColor = color(percent: percent, charging: charging, state: state)
-        let markBounds = wlmouseMarkBounds(in: rect)
-        let markPath = wlmouseMarkPath(in: rect)
+        let ink = color(percent: percent, charging: charging, state: state)
+        // Original top-down mouse silhouette, with a battery gauge below the buttons.
+        let body = NSBezierPath(
+            roundedRect: NSRect(x: rect.minX + 3, y: rect.minY + 1.5, width: 12, height: 15),
+            xRadius: 5.5,
+            yRadius: 5.5
+        )
+        ink.setStroke()
+        body.lineWidth = 1.25
+        body.stroke()
 
-        if let percent, state == .active {
-            let clamped = max(0, min(100, percent))
-            let fillHeight = CGFloat(clamped) / 100 * markBounds.height
-            let fill = NSRect(x: markBounds.minX, y: markBounds.minY, width: markBounds.width, height: fillHeight)
+        ink.setFill()
+        NSBezierPath(roundedRect: NSRect(x: rect.minX + 8.3, y: rect.minY + 12.2, width: 1.4, height: 2.6), xRadius: 0.7, yRadius: 0.7).fill()
 
-            strokeColor.withAlphaComponent(0.22).setFill()
-            markPath.fill()
+        let buttons = NSBezierPath()
+        buttons.move(to: NSPoint(x: rect.minX + 3.5, y: rect.minY + 10.8))
+        buttons.line(to: NSPoint(x: rect.minX + 14.5, y: rect.minY + 10.8))
+        buttons.lineWidth = 1
+        buttons.stroke()
 
+        let gauge = NSRect(x: rect.minX + 5.5, y: rect.minY + 3.5, width: 7, height: 5.5)
+        let gaugePath = NSBezierPath(roundedRect: gauge, xRadius: 1.5, yRadius: 1.5)
+        ink.withAlphaComponent(0.2).setFill()
+        gaugePath.fill()
+        if state == .active, let percent {
+            let fillWidth = gauge.width * CGFloat(max(0, min(100, percent))) / 100
             NSGraphicsContext.saveGraphicsState()
-            NSBezierPath(rect: fill).addClip()
-            strokeColor.setFill()
-            markPath.fill()
+            gaugePath.addClip()
+            ink.setFill()
+            NSRect(x: gauge.minX, y: gauge.minY, width: fillWidth, height: gauge.height).fill()
             NSGraphicsContext.restoreGraphicsState()
         } else {
-            strokeColor.setFill()
-            markPath.fill()
-        }
-    }
-
-    private enum MarkPathCommand {
-        case move(CGFloat, CGFloat)
-        case curve(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)
-        case close
-    }
-
-    private static let wlmouseMarkCommands: [MarkPathCommand] = [
-        .move(16.27, 14.53),
-        .curve(16.27, 14.53, 16.27, 14.53, 16.27, 14.53),
-        .curve(16.27, 14.49, 16.27, 14.45, 16.27, 14.41),
-        .curve(16.27, 12.70, 16.27, 10.99, 16.27, 9.28),
-        .curve(16.27, 8.32, 16.26, 7.36, 16.26, 6.39),
-        .curve(16.26, 5.71, 16.26, 5.03, 16.25, 4.35),
-        .curve(16.25, 3.93, 16.26, 3.51, 16.25, 3.09),
-        .curve(16.25, 2.92, 16.23, 2.74, 16.18, 2.57),
-        .curve(15.94, 1.85, 15.50, 1.28, 14.89, 0.85),
-        .curve(14.58, 0.63, 14.36, 0.64, 14.05, 0.85),
-        .curve(13.67, 1.10, 13.39, 1.44, 13.13, 1.81),
-        .curve(12.94, 2.09, 12.77, 2.38, 12.72, 2.72),
-        .curve(12.68, 2.97, 12.67, 3.22, 12.67, 3.48),
-        .curve(12.67, 8.92, 12.67, 14.37, 12.67, 19.81),
-        .curve(12.67, 20.91, 12.68, 22.00, 12.68, 23.10),
-        .curve(12.68, 24.01, 12.69, 24.93, 12.68, 25.84),
-        .curve(12.68, 26.24, 12.77, 26.59, 12.98, 26.93),
-        .curve(13.27, 27.41, 13.63, 27.84, 14.08, 28.19),
-        .curve(14.36, 28.41, 14.58, 28.40, 14.87, 28.19),
-        .curve(14.90, 28.17, 14.93, 28.14, 14.96, 28.12),
-        .curve(15.41, 27.74, 15.78, 27.29, 16.06, 26.76),
-        .curve(16.15, 26.59, 16.22, 26.39, 16.25, 26.20),
-        .curve(16.29, 25.88, 16.29, 25.55, 16.29, 25.22),
-        .curve(16.29, 21.70, 16.29, 18.18, 16.29, 14.65),
-        .curve(16.27, 14.62, 16.27, 14.58, 16.27, 14.53),
-        .close,
-        .move(0.64, 8.64),
-        .curve(0.67, 8.47, 0.68, 8.31, 0.72, 8.14),
-        .curve(0.76, 7.98, 0.80, 7.82, 0.87, 7.67),
-        .curve(1.12, 7.11, 1.44, 6.60, 1.88, 6.16),
-        .curve(2.08, 5.96, 2.23, 5.96, 2.43, 6.15),
-        .curve(2.88, 6.60, 3.34, 7.05, 3.80, 7.50),
-        .curve(4.74, 8.43, 5.67, 9.35, 6.61, 10.28),
-        .curve(7.19, 10.86, 7.78, 11.43, 8.30, 12.06),
-        .curve(9.04, 12.96, 9.55, 13.97, 9.89, 15.08),
-        .curve(10.00, 15.44, 10.12, 15.80, 10.20, 16.17),
-        .curve(10.26, 16.42, 10.28, 16.69, 10.28, 16.95),
-        .curve(10.29, 18.72, 10.29, 20.50, 10.30, 22.27),
-        .curve(10.30, 22.37, 10.31, 22.47, 10.31, 22.57),
-        .curve(10.31, 22.74, 10.26, 22.79, 10.10, 22.81),
-        .curve(9.65, 22.87, 9.21, 22.84, 8.78, 22.70),
-        .curve(8.35, 22.56, 7.94, 22.37, 7.57, 22.10),
-        .curve(7.05, 21.72, 6.73, 21.22, 6.60, 20.59),
-        .curve(6.53, 20.25, 6.50, 19.90, 6.50, 19.55),
-        .curve(6.50, 18.81, 6.51, 18.07, 6.50, 17.34),
-        .curve(6.49, 16.78, 6.41, 16.23, 6.15, 15.73),
-        .curve(5.94, 15.33, 5.70, 14.96, 5.39, 14.64),
-        .curve(4.87, 14.10, 4.33, 13.57, 3.80, 13.04),
-        .curve(3.07, 12.31, 2.34, 11.59, 1.61, 10.85),
-        .curve(1.46, 10.70, 1.33, 10.55, 1.20, 10.38),
-        .curve(0.88, 9.97, 0.69, 9.50, 0.66, 8.97),
-        .curve(0.66, 8.95, 0.65, 8.93, 0.64, 8.92),
-        .curve(0.64, 8.82, 0.64, 8.73, 0.64, 8.64),
-        .close,
-        .move(18.62, 21.16),
-        .curve(18.62, 20.71, 18.62, 20.26, 18.62, 19.81),
-        .curve(18.62, 18.86, 18.62, 17.91, 18.63, 16.96),
-        .curve(18.64, 16.37, 18.79, 15.81, 18.97, 15.25),
-        .curve(19.22, 14.48, 19.52, 13.73, 19.94, 13.03),
-        .curve(20.34, 12.38, 20.82, 11.78, 21.35, 11.25),
-        .curve(22.84, 9.75, 24.35, 8.26, 25.85, 6.77),
-        .curve(26.06, 6.57, 26.26, 6.36, 26.47, 6.16),
-        .curve(26.52, 6.12, 26.57, 6.07, 26.62, 6.04),
-        .curve(26.74, 5.97, 26.86, 5.98, 26.96, 6.08),
-        .curve(27.56, 6.68, 28.06, 7.36, 28.21, 8.22),
-        .curve(28.38, 9.16, 28.14, 10.00, 27.46, 10.68),
-        .curve(26.33, 11.82, 25.19, 12.95, 24.05, 14.07),
-        .curve(23.62, 14.49, 23.22, 14.93, 22.91, 15.45),
-        .curve(22.56, 16.03, 22.42, 16.67, 22.42, 17.34),
-        .curve(22.41, 18.18, 22.41, 19.02, 22.40, 19.86),
-        .curve(22.39, 20.40, 22.27, 20.92, 22.00, 21.39),
-        .curve(21.79, 21.76, 21.47, 22.04, 21.11, 22.26),
-        .curve(20.67, 22.53, 20.20, 22.75, 19.68, 22.81),
-        .curve(19.38, 22.84, 19.08, 22.83, 18.78, 22.82),
-        .curve(18.64, 22.82, 18.59, 22.75, 18.59, 22.59),
-        .curve(18.61, 22.11, 18.61, 21.64, 18.62, 21.16),
-        .curve(18.62, 21.16, 18.62, 21.16, 18.62, 21.16),
-        .close
-    ]
-
-    private static func wlmouseMarkBounds(in rect: NSRect) -> NSRect {
-        let scale = wlmouseMarkScale(in: rect)
-        let width = sourceMarkWidth * scale
-        let height = sourceMarkHeight * scale
-        return NSRect(
-            x: rect.minX + (rect.width - width) / 2,
-            y: rect.minY + (rect.height - height) / 2,
-            width: width,
-            height: height
-        )
-    }
-
-    private static func wlmouseMarkPath(in rect: NSRect) -> NSBezierPath {
-        let bounds = wlmouseMarkBounds(in: rect)
-        let scale = wlmouseMarkScale(in: rect)
-
-        func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
-            return NSPoint(
-                x: bounds.minX + (x - sourceMarkMinX) * scale,
-                y: bounds.minY + (sourceMarkMaxY - y) * scale
-            )
+            // An unavailable reading is distinct from a full or empty battery.
+            ink.setStroke()
+            let dash = NSBezierPath()
+            dash.move(to: NSPoint(x: gauge.minX + 1.5, y: gauge.midY))
+            dash.line(to: NSPoint(x: gauge.maxX - 1.5, y: gauge.midY))
+            dash.lineWidth = 1
+            dash.stroke()
         }
 
-        let path = NSBezierPath()
-        for command in wlmouseMarkCommands {
-            switch command {
-            case let .move(x, y):
-                path.move(to: point(x, y))
-            case let .curve(controlX1, controlY1, controlX2, controlY2, x, y):
-                path.curve(
-                    to: point(x, y),
-                    controlPoint1: point(controlX1, controlY1),
-                    controlPoint2: point(controlX2, controlY2)
-                )
-            case .close:
-                path.close()
-            }
+        if charging {
+            let bolt = NSBezierPath()
+            bolt.move(to: NSPoint(x: rect.minX + 19.5, y: rect.minY + 12))
+            bolt.line(to: NSPoint(x: rect.minX + 16.5, y: rect.minY + 7.5))
+            bolt.line(to: NSPoint(x: rect.minX + 18.5, y: rect.minY + 7.5))
+            bolt.line(to: NSPoint(x: rect.minX + 17.5, y: rect.minY + 4))
+            bolt.line(to: NSPoint(x: rect.minX + 21, y: rect.minY + 9))
+            bolt.line(to: NSPoint(x: rect.minX + 19, y: rect.minY + 9))
+            bolt.close()
+            ink.setFill()
+            bolt.fill()
+        } else if state == .noPermission || state == .error {
+            ink.setFill()
+            NSBezierPath(roundedRect: NSRect(x: rect.minX + 18, y: rect.minY + 7, width: 1.5, height: 5), xRadius: 0.75, yRadius: 0.75).fill()
+            NSBezierPath(ovalIn: NSRect(x: rect.minX + 18, y: rect.minY + 4.5, width: 1.5, height: 1.5)).fill()
         }
-
-        return path
     }
-
-    private static func wlmouseMarkScale(in rect: NSRect) -> CGFloat {
-        min((rect.width - 2) / sourceMarkWidth, (rect.height - 1.2) / sourceMarkHeight)
-    }
-
-    private static let sourceMarkMinX: CGFloat = 0.64
-    private static let sourceMarkMaxY: CGFloat = 28.41
-    private static let sourceMarkWidth: CGFloat = 27.74
-    private static let sourceMarkHeight: CGFloat = 27.78
 
     private static func color(percent: Int?, charging: Bool, state: BatteryReading.State) -> NSColor {
         if charging {
