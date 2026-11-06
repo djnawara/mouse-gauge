@@ -2,7 +2,7 @@
 
 See your WLMouse battery and charging status at a glance in the macOS menu bar.
 
-A small native Swift app for checking your mouse without opening a configuration tool. A solid mouse silhouette fills from bottom to top with the battery level and turns blue while charging. Built and maintained by [David Nawara](https://github.com/djnawara).
+A small native Swift app for checking your mouse without opening a configuration tool. A solid mouse silhouette with a simple wheel gap fills from bottom to top with the battery level and turns blue while charging. Built and maintained by [David Nawara](https://github.com/djnawara).
 
 ![Solid mouse silhouette showing a full battery](docs/images/full-battery.png)
 

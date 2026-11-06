@@ -599,6 +599,18 @@ private enum StatusIcon {
             ink.setFill()
             body.fill()
         }
+
+        // A single open wheel gap gives the solid shape its mouse character.
+        NSGraphicsContext.saveGraphicsState()
+        body.addClip()
+        NSGraphicsContext.current?.cgContext.setBlendMode(.destinationOut)
+        NSColor.black.setFill()
+        NSBezierPath(
+            roundedRect: NSRect(x: rect.midX - 0.55, y: rect.midY + 3.7, width: 1.1, height: 6),
+            xRadius: 0.55,
+            yRadius: 0.55
+        ).fill()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private static func silhouette(in rect: NSRect) -> NSBezierPath {
@@ -606,19 +618,19 @@ private enum StatusIcon {
             NSPoint(x: rect.midX + x, y: rect.midY + y)
         }
 
-        // Beast X-inspired outer contour: a gently peaked front, shallow waist,
-        // flared rear, and rounded heel. No branding, buttons, or shell cutouts.
+        // Beast X-inspired contour: a peaked front, shallow waist, flared rear,
+        // and rounded heel. Slightly lower shoulders keep the peak visible at 1x.
         let body = NSBezierPath()
-        body.move(to: point(-0.7, 8.3))
-        body.line(to: point(0.7, 8.3))
-        body.curve(to: point(4.9, 5.9), controlPoint1: point(2.3, 7.8), controlPoint2: point(5.1, 6.9))
+        body.move(to: point(-1, 8.5))
+        body.line(to: point(1, 8.5))
+        body.curve(to: point(4.9, 5.3), controlPoint1: point(2.6, 7.8), controlPoint2: point(5.1, 6.6))
         body.curve(to: point(4.5, 0), controlPoint1: point(4.9, 3.9), controlPoint2: point(4.3, 1.7))
         body.curve(to: point(5.2, -4.1), controlPoint1: point(4.6, -1.4), controlPoint2: point(5.2, -2.7))
         body.curve(to: point(0, -8.3), controlPoint1: point(5.2, -6.7), controlPoint2: point(2.9, -8.3))
         body.curve(to: point(-5.2, -4.1), controlPoint1: point(-2.9, -8.3), controlPoint2: point(-5.2, -6.7))
         body.curve(to: point(-4.5, 0), controlPoint1: point(-5.2, -2.7), controlPoint2: point(-4.6, -1.4))
-        body.curve(to: point(-4.9, 5.9), controlPoint1: point(-4.3, 1.7), controlPoint2: point(-4.9, 3.9))
-        body.curve(to: point(-0.7, 8.3), controlPoint1: point(-5.1, 6.9), controlPoint2: point(-2.3, 7.8))
+        body.curve(to: point(-4.9, 5.3), controlPoint1: point(-4.3, 1.7), controlPoint2: point(-4.9, 3.9))
+        body.curve(to: point(-1, 8.5), controlPoint1: point(-5.1, 6.6), controlPoint2: point(-2.6, 7.8))
         body.close()
         return body
     }
