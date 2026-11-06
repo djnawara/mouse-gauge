@@ -4,9 +4,9 @@ Native macOS menu bar item for WLMouse battery status.
 
 ## What It Does
 
-WLMouse Menu Bar reads battery status from WLMouse wireless mice and displays it in the macOS menu bar as a compact side-profile mouse battery symbol.
+WLMouse Menu Bar reads battery status from WLMouse wireless mice and displays it in the macOS menu bar as a compact WLMouse mark with battery fill.
 
-![Full battery menu bar icon](docs/images/full-battery.png)
+![WLMouse menu bar mark showing a full battery](docs/images/full-battery.png)
 
 The app talks directly to WLMouse HID devices through IOKit. It supports the wireless dongle path and the direct USB mouse path when macOS exposes both. For the Beast X 8K setup tested here, unplugged wireless mode reads battery through the `0xA883` receiver.
 
@@ -17,7 +17,7 @@ WLMouse USB device connections and disconnections also request an immediate refr
 The menu bar dropdown shows:
 
 - Current status
-- Charging state, with a plug marker in the side-profile mouse symbol
+- Charging state, with the WLMouse mark turning blue while charging
 - Matched device and PID
 - Last query detail
 - Manual refresh
