@@ -1,181 +1,115 @@
 # WLMouse Menu Bar
 
-Native macOS menu bar item for WLMouse battery status.
+See your WLMouse battery and charging status at a glance in the macOS menu bar.
 
-## What It Does
-
-WLMouse Menu Bar reads battery status from WLMouse wireless mice and displays it in the macOS menu bar as a compact WLMouse mark with battery fill.
+A small native Swift app for checking your mouse without opening a configuration tool. The WLMouse mark fills with the battery level and turns blue while charging. Built and maintained by [David Nawara](https://github.com/djnawara).
 
 ![WLMouse menu bar mark showing a full battery](docs/images/full-battery.png)
 
-The app talks directly to WLMouse HID devices through IOKit. It supports the wireless dongle path and the direct USB mouse path when macOS exposes both. For the Beast X 8K setup tested here, unplugged wireless mode reads battery through the `0xA883` receiver.
+[Install](#install-from-source) · [Local signing](#local-signing-without-a-paid-developer-account) · [Troubleshooting](#permissions-and-troubleshooting) · [Roadmap](#roadmap)
 
-Battery status refreshes automatically every five seconds, including while the dropdown is open. Opening the menu also requests an immediate refresh. Queries run in the background without overlapping, and the last status stays visible until the next reading arrives.
+## What works today
 
-WLMouse USB device connections and disconnections also request an immediate refresh. If a connection changes during a query, another read runs as soon as it finishes. Charging changes that do not add or remove a USB device (such as charging from a wall charger while the receiver stays connected) are picked up by polling.
+- Battery percentage and charging state in a compact menu bar icon and dropdown.
+- Automatic refresh every five seconds, including while the menu is open.
+- Immediate refresh requests when the menu opens or a WLMouse USB device connects or disconnects.
+- Background queries that do not overlap, with the previous status visible until the next reading arrives.
+- Device identification, query details, and manual refresh for troubleshooting.
+- A dockless app installed in your user Applications folder.
 
-The menu bar dropdown shows:
+The app reads HID reports directly through IOKit. It can query the wireless receiver and the mouse's direct USB connection when macOS exposes them. A charging change without a USB connection event, such as plugging into a wall charger, is picked up by polling.
 
-- Current status
-- Charging state, with the WLMouse mark turning blue while charging
-- Matched device and PID
-- Last query detail
-- Manual refresh
-- Quit
+**Current scope:** macOS and WLMouse battery reporting. Mouse settings, battery history, other platforms, and other brands are planned below.
 
-## Requirements
+## Install from source
 
-- macOS 13 or newer
-- Apple Command Line Tools with Swift
-- Nix with flakes
-- direnv
-- A supported WLMouse device or receiver
+You need:
 
-## Setup
+- macOS 13 or newer and a compatible WLMouse mouse or receiver.
+- Apple Command Line Tools with Swift 6 or newer. Install the tools with `xcode-select --install` if needed.
+- [`just`](https://github.com/casey/just), which runs the build and install recipes.
 
-Allow the repo's direnv environment once:
+Nix and direnv are optional. If you use them, the included flake supplies `just`; run `direnv allow` in the checkout. Alternatively, enter the development shell with `nix develop`.
 
 ```sh
-direnv allow
+git clone https://github.com/djnawara/wlmouse-menu-bar.git
+cd wlmouse-menu-bar
 ```
 
-The direnv shell loads the flake, which provides `just` and sets SwiftPM cache paths inside `.build/`.
+For now, the project uses local builds and local signing. We recommend creating your own free signing certificate using the next section before installing. No paid Apple Developer membership is required for that setup.
 
-## Build
-
-Build the Swift executable:
+With a certificate named `WLMouse Local Signing` in your Keychain:
 
 ```sh
-just build
-```
-
-Build a dockless `.app` bundle:
-
-```sh
-just app
-```
-
-The bundle is written to:
-
-```text
-.build/WLMouseMenuBar.app
-```
-
-## Launch
-
-Launch the local `.build` app bundle:
-
-```sh
-just launch
-```
-
-Install it into your user Applications folder:
-
-```sh
-just install
-```
-
-Installation quits any running copy before replacing it and relaunches it afterward. When an updated ad hoc build changes the app's signing requirement, installation also resets only this app's Input Monitoring decision and launches the new build to request access. Reinstalling the same build preserves its existing permission. You still approve access in macOS; installation cannot grant it for you.
-
-Then launch:
-
-```sh
+WLMOUSE_SIGN_IDENTITY='WLMouse Local Signing' just install
 just open
 ```
 
-The app is configured as an accessory app, so it appears in the menu bar without a Dock icon.
+The app installs at `~/Applications/WLMouseMenuBar.app`. Approve **WLMouse Menu Bar** in **System Settings → Privacy & Security → Input Monitoring** when requested. Quit and reopen the app if macOS asks you to do so.
 
-For development, you can also run directly with SwiftPM:
+For a quick build without creating a certificate, use `just install` followed by `just open`. This defaults to ad hoc signing, which can require approving Input Monitoring again after the executable changes.
+
+Installation quits running copies before replacing the app and relaunches it if it was running. When a changed ad hoc signing requirement is detected, installation also resets this app's old Input Monitoring decision and launches the new build to request access. Reinstalling the same build preserves its permission. You still approve access yourself in macOS.
+
+## Local signing without a paid developer account
+
+For now, our signing approach is a certificate you create and keep on your own Mac. This gives your local builds a consistent signing identity without paying for Developer ID. It does not provide Apple notarization or a publicly trusted download. Apple's [code signing guide](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html) documents self-signed certificates for local development.
+
+### Create your certificate once
+
+1. Open **Keychain Access** (the certificate utility, rather than the Passwords app).
+2. Choose **Keychain Access → Certificate Assistant → Create a Certificate**.
+3. Name it **WLMouse Local Signing**.
+4. Set **Identity Type** to **Self Signed Root** and **Certificate Type** to **Code Signing**.
+5. Select **Let me override defaults** to choose a validity period, then complete the remaining certificate details and create it in your login keychain.
+
+Check that your identity is available:
 
 ```sh
-just run
+security find-identity -v -p codesigning
 ```
 
-## Diagnostics
+If your certificate is not listed as valid, open it in Keychain Access, expand **Trust**, set **Code Signing** to **Always Trust**, and save the change. Only apply this to the certificate you just created for your own builds. Check the command again; the certificate also needs its corresponding private key in your Keychain.
 
-For a one-shot HID read:
+### Use the same certificate for updates
+
+Run every install with the same identity:
 
 ```sh
-just once
+WLMOUSE_SIGN_IDENTITY='WLMouse Local Signing' just install
 ```
 
-To list WLMouse HID collections visible to macOS:
+Or set it for your terminal session, then use the usual commands:
 
 ```sh
-just devices
-```
-
-To print raw feature-report probe results for each visible collection:
-
-```sh
-just probe
-```
-
-If `just devices` shows no `0x36A7` collections after changing macOS privacy or device-access settings, restart macOS with the wireless dongle connected, then try again.
-
-If `just once` reads the battery but the launched app does not, macOS is likely authorizing Terminal but not the app bundle. See the privacy notes below.
-
-## macOS Privacy During Development
-
-WLMouse Menu Bar needs Input Monitoring permission because it reads reports from mouse-class HID devices. macOS grants that permission to a specific app identity and location. During development, launching different copies of the app can confuse the permission state.
-
-Use one stable launch location while testing:
-
-```sh
+export WLMOUSE_SIGN_IDENTITY='WLMouse Local Signing'
 just install
-open ~/Applications/WLMouseMenuBar.app
+just open
 ```
 
-If the app shows `Status: Input Monitoring required`, or its enabled permission entry has stopped working after an update, run:
+Reuse the existing certificate rather than creating a new one for each build. Signing with the same certificate, bundle identifier, and install location is intended to keep the identity consistent across updates; macOS may still require reapproval. Switching from ad hoc signing can require one final `just repair-permissions` and approval of the newly signed app.
+
+Create your own certificate for your own builds; keep its private key out of this repository. The installer does not automatically reset permissions for certificate-signed builds. The recovery command below remains available if an approval becomes stale.
+
+## Permissions and troubleshooting
+
+Input Monitoring is required to read mouse-class HID reports. macOS grants it to an app identity, so a checked entry in Settings can become stale after a differently signed build replaces the app. This can leave both automatic and manual refresh unable to read the battery.
+
+If the dropdown says **Status: Input Monitoring required**, or the app stops updating after an install despite an enabled permission entry:
 
 ```sh
 just repair-permissions
 ```
 
-This quits the app, clears its Input Monitoring decision with `tccutil reset ListenEvent local.wlmouse-menu-bar`, and relaunches the installed copy so macOS can request access again. Enable it in System Settings > Privacy & Security > Input Monitoring, then quit and reopen the app if macOS asks. Other apps' permissions are unaffected. If a stale entry persists, remove it manually and relaunch the installed app.
+This quits WLMouse Menu Bar, resets only its Input Monitoring decision using `tccutil reset ListenEvent local.wlmouse-menu-bar`, and relaunches the installed app to request access again. Approve it in Settings, then quit and reopen if requested. See Apple's [permission reset documentation](https://developer.apple.com/documentation/xcode/resetting-access-to-protected-resources-in-macos).
 
-The default build uses ad hoc signing, whose signing requirement changes with the executable. To use a stable signing certificate from your Keychain instead:
+If the stale entry persists, remove **WLMouse Menu Bar** from Input Monitoring, then relaunch `~/Applications/WLMouseMenuBar.app` to create a fresh entry. Keep using this installed location during testing; copies launched from `.build` can have a different permission state.
 
-```sh
-WLMOUSE_SIGN_IDENTITY='Your code signing identity' just install
-```
+For a receiver that remains undetected, reconnect it and check the diagnostics below. A command run from your terminal may have different permission from the installed app, so a successful terminal read does not prove the app is authorized. If devices remain missing after correcting permissions and reconnecting, restart macOS with the receiver connected and try again.
 
-Use `security find-identity -v -p codesigning` to list available identities. Signing subsequent versions with the same certificate and bundle identifier can preserve permissions across updates. The installer does not automatically reset permissions for certificate-signed builds; `just repair-permissions` remains available if needed.
+## Device compatibility
 
-## Recipes
-
-```sh
-just build
-just app
-just install
-just repair-permissions
-just launch
-just open
-just run
-just once
-just devices
-just probe
-just clean
-```
-
-`just app` writes a dockless bundle at `.build/WLMouseMenuBar.app`.
-`just install` copies it to `~/Applications/WLMouseMenuBar.app`.
-`just launch` opens the local `.build` app bundle.
-`just open` opens the installed app from `~/Applications`.
-
-## Supported Devices
-
-The implementation follows the reverse-engineered WLMouse protocol documented by:
-
-- https://github.com/mee7ya/wlmouse-cli
-- https://github.com/minerva32/wlmouse-battery-tray
-- https://github.com/snems/WLPower
-
-Known feature-report devices use VID `0x36A7`, a 65-byte feature report, command `0x83` at offset 6, and read battery at offset 8. Known older Beast X devices use the interrupt-style request with command `0x1A` at offset 3.
-
-On macOS, some feature-report collections use a 64-byte payload-only report shape. The app tries both the hidapi-style 65-byte buffer and the macOS payload-only buffer.
-
-Known PIDs:
+Tested with a **Beast X 8K** setup, including wireless battery reads through the `0xA883` receiver. Other devices below have known protocol mappings in the app but have not all been verified on hardware. Compatibility reports are welcome.
 
 | PID | Device | Protocol |
 | --- | --- | --- |
@@ -191,6 +125,46 @@ Known PIDs:
 | `0xA885` | Beast X Mini Receiver | Feature |
 | `0xA887` | Beast X Receiver | Interrupt |
 | `0xA888` | Beast X | Interrupt |
+
+## Roadmap
+
+These are planned directions, not features available in the current app. Hardware support depends on what each device's protocol exposes.
+
+- [ ] **Show battery-relevant settings:** mouse polling/report rate (Hz), DPI, and other available settings such as performance modes and sleep timers. Also display the app's current battery refresh interval, separately from the mouse polling rate.
+- [ ] **Graph battery history:** record battery readings and settings over time so users can compare drain across configurations and see charging sessions.
+- [ ] **Estimate time per charge:** summarize observed runtime across charge cycles, distinguishing elapsed time from active-use time where that can be measured. Show how much data an estimate is based on.
+- [ ] **Linux support.**
+- [ ] **Windows support.**
+- [ ] **Other popular gaming mice:** expand beyond WLMouse, with device-specific protocol adapters and a clear tested-device list.
+
+## Development and diagnostics
+
+| Command | Purpose |
+| --- | --- |
+| `just build` | Build the Swift executable. |
+| `just app` | Build and sign `.build/WLMouseMenuBar.app`. |
+| `just install` | Install the app, handling running copies and stale ad hoc permissions. |
+| `just open` | Open the installed app. |
+| `just repair-permissions` | Reset this app's Input Monitoring decision and relaunch it. |
+| `just run` | Run the executable through SwiftPM. |
+| `just once` | Print a single battery reading. |
+| `just devices` | List visible WLMouse HID collections. |
+| `just probe` | Print raw feature-report probe results. |
+| `just clean` | Clean SwiftPM build outputs. |
+
+`just launch` opens the build-folder app for development. Prefer `just install` and `just open` when testing Input Monitoring permissions. `WLMOUSE_SIGN_IDENTITY` applies to `just app`, `just install`, and `just launch`; SwiftPM diagnostic commands run the executable directly.
+
+For compatibility issues, [open an issue](https://github.com/djnawara/wlmouse-menu-bar/issues) with your macOS version, mouse model, wired/wireless connection, and output from `just devices` and `just once`. Note any permission errors. Review diagnostic output before posting it.
+
+## Protocol notes and credits
+
+This implementation follows the reverse-engineered WLMouse protocol documented by:
+
+- [wlmouse-cli](https://github.com/mee7ya/wlmouse-cli)
+- [wlmouse-battery-tray](https://github.com/minerva32/wlmouse-battery-tray)
+- [WLPower](https://github.com/snems/WLPower)
+
+Known feature-report devices use VID `0x36A7`, a 65-byte feature report, command `0x83` at offset 6, and battery percentage at offset 8. Some macOS collections use a 64-byte payload-only shape; the app tries both layouts. Older Beast X devices use an interrupt-style request with command `0x1A` at offset 3.
 
 ## License
 
